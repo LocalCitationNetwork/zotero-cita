@@ -1,0 +1,460 @@
+/* eslint-disable no-useless-catch */
+import Wikicite, { debug } from "./wikicite";
+import Wikidata, { CitesWorkClaim } from "./wikidata";
+import ItemWrapper from "./itemWrapper";
+import SourceItemWrapper from "./sourceItemWrapper";
+import Matcher from "./matcher";
+import OCI from "../oci";
+import Progress from "./progress";
+
+export type CitationSource =
+	| "Crossref"
+	| "Semantic Scholar"
+	| "OpenAlex"
+	| "Open Citations"
+	| "WikiData"
+	| "User"
+	| "Unknown";
+
+/** Class representing a citation */
+export class Citation {
+	source: SourceItemWrapper;
+	target: ItemWrapper;
+	wikidataCitationStatus?: {
+		citingQID: QID;
+		citedQID: QID;
+	};
+	citationSource: CitationSource;
+	creationDate?: Date;
+	lastModificationDate?: Date;
+	readonly uuid: string;
+
+	/**
+	 * Create a citation.
+	 * @param {Zotero.Item | object} citationData.item - The citation's target item.
+	 * @param {string} citationData.ocis - Just for backwards compatibility to load old citation files.
+	 * @param {string} citationData.wikidataCitationStatus.source - For tracking whether this citation is also present in wikidata. Source item
+	 * @param {string} citationData.wikidataCitationStatus.target - Target item for this citation in wikidata
+	 * @param {string?} citationData.zotero - The citation's target item key, if linked to an item in the library.
+	 * @param {string?} citationData.uuid - Unique indentifier for the citation.
+	 * @param {CitationSource?} citationData.citationSource - Where the citation data came from.
+	 * @param {Date?} citationData.creationDate - When the citation was created.
+	 * @param {Date?} citationData.lastModificationDate - When the citation was last updated by the user.
+	 * @param {Zotero.Item} sourceItem - The citation's source item.
+	 * @param {"create" | "load"} citationType - Whether we're creating a new citation or loading an existing one.
+	 *                                           If creating a new one - set the creation date to the current time if undefined.
+	 */
+	constructor(
+		citationData: {
+			item:
+				| Zotero.Item
+				| {
+						itemType?: // there are all possible itemTypes for Zotero.Item(itemType)
+							| keyof _ZoteroTypes.Item.ItemTypeMapping
+							| _ZoteroTypes.Item.ItemTypeMapping[keyof _ZoteroTypes.Item.ItemTypeMapping];
+				  };
+			oci?: string;
+			ocis?: string;
+			wikidataCitationStatus?: {
+				citingQID: QID;
+				citedQID: QID;
+			};
+			zotero?: string;
+			uuid?: string;
+			citationSource?: CitationSource;
+			creationDate?: Date;
+			lastModificationDate?: Date;
+		},
+		sourceItem: SourceItemWrapper,
+		citationType: "create" | "load",
+	) {
+		// Fixme: improve type checking of the citation object passed as argument
+		if (!citationData.item) {
+			throw new Error("Can't create a citation without a target item");
+		}
+
+		// this.index = index;
+		this.source = sourceItem;
+
+		if (citationData.item instanceof Zotero.Item) {
+			this.target = new ItemWrapper(
+				citationData.item,
+				this.source.saveCitations.bind(this.source),
+			);
+		} else {
+			if (!citationData.item.itemType) {
+				// use a default item type if it was not provided in the target item literal
+				// fix: move this default value out to another file or module
+				citationData.item.itemType = "journalArticle";
+			}
+			this.target = new ItemWrapper(
+				new Zotero.Item(citationData.item.itemType),
+				this.source.saveCitations.bind(this.source),
+			);
+			this.target.fromJSON(citationData.item);
+		}
+
+		if (citationData.wikidataCitationStatus) {
+			this.wikidataCitationStatus = citationData.wikidataCitationStatus;
+		} else if (citationData.ocis) {
+			// for backwards compatibility - wikidataCitation state used to be stored in ocis
+			this.loadWikidataCitationStatusFromOldOCIs(citationData.ocis);
+		}
+
+		this.target.key = citationData.zotero;
+		// if a Zotero item key is provided for the target item,
+		// and the target item is a Zotero Item (not a raw citation)
+		// then automatically link the source and target items
+		if (citationData.zotero && citationData.item instanceof Zotero.Item) {
+			this.linkToZoteroItem(citationData.item);
+		}
+
+		if (citationData.citationSource) {
+			this.citationSource = citationData.citationSource;
+		} else {
+			this.citationSource = "Unknown";
+		}
+
+		if (citationData.creationDate) {
+			this.creationDate = citationData.creationDate;
+		} else if (citationType == "create") {
+			this.creationDate = new Date();
+		}
+
+		if (citationData.lastModificationDate) {
+			this.lastModificationDate = citationData.lastModificationDate;
+		}
+
+		// Issue: Save and upload information about citations order
+		// this.series_ordinal;
+		// // crosref does provide a citation key which seems to have some ordinal information
+		// // but I say to leave this out for now
+
+		// generate a unique identifier for this citation if needed
+		this.uuid = citationData.uuid ?? crypto.randomUUID();
+	}
+
+	addCreator(creatorType: any, creatorName: string) {
+		// I may limit author types to author and editor
+	}
+
+	addWikidataCitationStatus(citingQID: QID, citedQID: QID) {
+		this.wikidataCitationStatus = {
+			citingQID,
+			citedQID,
+		};
+	}
+
+	loadWikidataCitationStatusFromOldOCIs(ocis: string) {
+		if (ocis) {
+			for (const oci of ocis) {
+				// OCI format used to be 010{sourceQID}-010{targetQID}
+				const [sourceId, targetId] = oci.split("-");
+				if (sourceId.startsWith("010") && targetId.startsWith("010")) {
+					const citingQID = ("Q" +
+						sourceId.replace(/^010/, "")) as QID;
+					const citedQID = ("Q" +
+						targetId.replace(/^010/, "")) as QID;
+					this.wikidataCitationStatus = {
+						citingQID,
+						citedQID,
+					};
+					break; // there would only be one wikidata OCI
+				}
+			}
+		}
+	}
+
+	/**
+	 * Delete citation from Wikidata
+	 */
+	async deleteRemotely() {
+		let success;
+		const getWikidataCitationStatus = this.getWikidataCitationStatus();
+		if (getWikidataCitationStatus && getWikidataCitationStatus.matches) {
+			try {
+				const qid = this.source.qid;
+				if (qid === undefined) {
+					throw new Error(
+						"Can't delete citation from Wikidata for item without QID.",
+					);
+				}
+				// fetch cites work statements
+				const claims = await Wikidata.getCitesWorkClaims(qid);
+				const pushClaims: { [qid: QID]: CitesWorkClaim[] } = {
+					[qid]: claims[qid].reduce(
+						(claimsToRemove: CitesWorkClaim[], claim) => {
+							// claim could be a string, number of actual claim object
+							// keep those which want to be deleted
+							if (
+								typeof claim != "string" &&
+								typeof claim != "number" &&
+								"value" in claim &&
+								claim.value === this.target.qid
+							) {
+								// create CitesWorkClaim objects from them
+								const pushClaim = new CitesWorkClaim(claim);
+								// and update them to pending remove status
+								pushClaim.remove = true;
+								claimsToRemove.push(pushClaim);
+							}
+							return claimsToRemove;
+						},
+						[],
+					),
+				};
+				// pass them to updateCitesWorkClaims to upload changes
+				const results =
+					await Wikidata.updateCitesWorkClaims(pushClaims);
+				success = Object.values(results).every(
+					(result) => result === "ok",
+				);
+			} catch (err) {
+				// fail if citation could not be deleted remotely
+				// do not fail if it couldn't be deleted because it doesn't exist
+				throw err;
+			}
+		} else {
+			// fix: better handle this. Do I have a debugger?
+			// Located string in a console message?
+			throw new Error(
+				"Cannot sync deletion of citation not available in Wikidata.",
+			);
+		}
+		return success;
+	}
+
+	getOCI() {
+		const sourceOMID = this.source.getPID("OMID")?.id;
+		const targetOMID = this.target.getPID("OMID")?.id;
+
+		if (sourceOMID && targetOMID) {
+			return OCI.getOci(sourceOMID, targetOMID);
+		}
+		return undefined;
+	}
+
+	removeWikidataCitationStatus() {
+		this.wikidataCitationStatus = undefined;
+	}
+
+	/**
+	 * Get the saved wikidata status for this citation, so we can detect for example
+	 * whether we should try to remove this citation from wikidata when it is deleted in Cita
+	 * @returns source and target QIDs, and well as whether these match the current citation source and target QIDs
+	 */
+	getWikidataCitationStatus() {
+		if (this.wikidataCitationStatus) {
+			const sourceQID = this.source.getPID("QID")?.id;
+			const targetQID = this.target.getPID("QID")?.id;
+
+			const matches =
+				sourceQID == this.wikidataCitationStatus.citingQID &&
+				targetQID == this.wikidataCitationStatus.citedQID;
+
+			return {
+				citingQID: this.wikidataCitationStatus.citingQID,
+				citedQID: this.wikidataCitationStatus.citedQID,
+				matches: matches,
+			};
+		} else {
+			return undefined;
+		}
+	}
+
+	/**
+	 * Return a JSON object to save to the source item extra field.
+	 */
+	toJSON() {
+		return {
+			item: this.target.toJSON(),
+			wikidataCitationStatus: this.wikidataCitationStatus,
+			zotero: this.target.key,
+			citationSource: this.citationSource,
+			creationDate: this.creationDate,
+			lastModificationDate: this.lastModificationDate,
+			uuid: this.uuid,
+		};
+	}
+
+	sync() {
+		// upload this and only this citation to wikidata
+		// check if both this.sourceItem and this.item have qid
+		// do not proceed if this.suppliers includes wikidata already
+		// use Wikidata.getCitations(this.sourceItem) to see if it's already uploaded
+		// if not, use Wikidata.addCitation(this.sourceItem.qid, this.item.qid)
+		// add wikidata to this.suppliers
+		// how do I save changes to sourceItem extra field now?
+		// I need access to the parent CitationList
+	}
+
+	wikidataSync(index: number) {
+		const syncable = this.source.qid && this.target.qid;
+		const wikidataCitationStatus = this.getWikidataCitationStatus();
+		if (wikidataCitationStatus) {
+			if (!wikidataCitationStatus.matches) {
+				// wikidata citation doesn't match, i.e., citing or cited id
+				// do not match with local source or target id
+				Services.prompt.alert(
+					window as mozIDOMWindowProxy,
+					Wikicite.getString(
+						"wikicite.wikidata-status.mismatch.title",
+					),
+					Wikicite.formatString(
+						"wikicite.wikidata-status.mismatch.message",
+						[
+							wikidataCitationStatus.citingQID,
+							wikidataCitationStatus.citedQID,
+						],
+					),
+				);
+			}
+		} else if (syncable) {
+			this.source.syncWithWikidata(index);
+			// Note: this function was taken from CitationRow.tsx
+			// Yet, calling syncWithWikidata with an index is not implemented anyway
+		} else {
+			Services.prompt.alert(
+				window as mozIDOMWindowProxy,
+				Wikicite.getString("wikicite.citation.sync.error"),
+				Wikicite.getString("wikicite.citation.sync.error.qid"),
+			);
+		}
+	}
+
+	/**
+	 * Automatically link citation with matching Zotero item
+	 * @param {Object} [matcher] Initialized Matcher object for batch operations
+	 */
+	async autoLink(matcher?: Matcher) {
+		let manual = false;
+		let progress;
+		if (!matcher) {
+			// If a Matcher object was not provided, create a new one
+			matcher = new Matcher(this.source.item.libraryID);
+			// Only in this case, be verbose
+			progress = new Progress(
+				"loading",
+				Wikicite.getString(
+					"wikicite.citation.auto-link.progress.loading",
+				),
+			);
+			await matcher.init();
+			manual = true;
+		}
+		const matches = matcher.findMatches(this.target.item);
+		let item: Zotero.Item | undefined;
+		if (matches.length) {
+			// Automatic linking succeeded
+			if (progress)
+				progress.updateLine(
+					"done",
+					Wikicite.getString(
+						"wikicite.citation.auto-link.progress.success",
+					),
+				);
+			// if multiple matches, use first one
+			item = Zotero.Items.get(matches[0]);
+		} else if (manual) {
+			// Automatic linking failed: select manually
+			if (progress)
+				progress.updateLine(
+					"error",
+					Wikicite.getString(
+						"wikicite.citation.auto-link.progress.failure",
+					),
+				);
+			const result = Services.prompt.confirm(
+				window as mozIDOMWindowProxy,
+				Wikicite.getString("wikicite.citation.auto-link.failure.title"),
+				Wikicite.getString(
+					"wikicite.citation.auto-link.failure.message",
+				),
+			);
+			if (result) item = Wikicite.selectItem()!;
+
+			// ignore selection if another citation already links to the same item
+			if (
+				item &&
+				this.source.citations.some(
+					(citation) => citation.target.key === item?.key,
+				)
+			) {
+				Services.prompt.alert(
+					window as mozIDOMWindowProxy,
+					"",
+					Wikicite.getString(
+						"wikicite.citation.link.error.duplicate",
+					),
+				);
+				item = undefined;
+			}
+		}
+		if (progress) progress.close();
+		if (item) {
+			this.linkToZoteroItem(item);
+		}
+	}
+
+	// link the citation target item to an item in the zotero library
+	linkToZoteroItem(item: Zotero.Item) {
+		if (item === this.source.item) {
+			Services.prompt.alert(
+				window as mozIDOMWindowProxy,
+				"",
+				Wikicite.getString("wikicite.citation.link.error.source-item"),
+			);
+			return;
+		}
+
+		if (item.libraryID && item.libraryID !== this.source.item.libraryID) {
+			Services.prompt.alert(
+				window as mozIDOMWindowProxy,
+				"",
+				Wikicite.getString("wikicite.citation.link.error.library"),
+			);
+			return;
+		}
+
+		// this.source.newRelations ||= this.source.item.addRelatedItem(item);
+		this.source.newRelations =
+			this.source.item.addRelatedItem(item) || this.source.newRelations;
+		if (item.addRelatedItem(this.source.item)) {
+			item.saveTx({
+				skipDateModifiedUpdate: true,
+			});
+		}
+
+		this.target.key = item.key;
+		this.source.saveCitations();
+	}
+
+	async unlinkFromZoteroItem(autosave = true) {
+		// other citations link to the same item
+		const otherLinks = this.source.citations.some(
+			(citation) =>
+				citation !== this && citation.target.key === this.target.key,
+		);
+		const linkedItem = Zotero.Items.getByLibraryAndKey(
+			this.source.item.libraryID,
+			this.target.key!,
+		) as Zotero.Item;
+		if (!otherLinks) {
+			this.source.newRelations =
+				(await this.source.item.removeRelatedItem(linkedItem)) ||
+				this.source.newRelations;
+			if (await linkedItem.removeRelatedItem(this.source.item)) {
+				linkedItem.saveTx({
+					skipDateModifiedUpdate: true,
+				});
+			}
+		}
+		this.target.key = undefined;
+		if (autosave) this.source.saveCitations();
+	}
+
+	resolveOCI() {
+		const oci = this.getOCI()!;
+		OCI.resolve(oci);
+	}
+}

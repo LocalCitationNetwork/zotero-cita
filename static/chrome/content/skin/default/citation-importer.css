@@ -1,0 +1,43 @@
+window#citation-importer {
+	width: 100%;
+	height: 100%;
+	padding: 1em;
+}
+
+#root {
+	height: 100%;
+	width: 100%;
+}
+
+#root > div {
+	display: grid;
+	grid-template-rows: auto 1fr auto;
+	min-height: 100%;
+}
+
+div#citation-importer-description {
+	margin-bottom: 10px;
+}
+
+div#citation-importer-textbox {
+	margin-top: 10px;
+	margin-bottom: 10px;
+}
+
+div#citation-importer-textbox > textarea {
+	height: 100%;
+}
+
+div#citation-importer-buttons {
+	text-align: right;
+	margin-top: 10px;
+}
+
+div#citation-importer-buttons > button {
+	margin-left: 5px;
+	margin-right: 5px;
+}
+
+textarea#citation-input {
+	width: 100%;
+}

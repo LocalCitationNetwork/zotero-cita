@@ -1,49 +1,119 @@
 {
-  "name": "zotero-cita",
-  "version": "0.5.5",
-  "description": "Cita: a Wikidata addon for Zotero",
-  "scripts": {
-    "postinstall": "patch-package",
-    "watch": "webpack --watch",
-    "build": "webpack"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/diegodlh/zotero-cita.git"
-  },
-  "author": "Diego de la Hera (https://diegodlh.conversodromo.com.ar/)",
-  "contributors": [
-    "Dominic Dall'Osto"
-  ],
-  "license": "GPL-3.0-or-later",
-  "bugs": {
-    "url": "https://github.com/diegodlh/zotero-cita/issues"
-  },
-  "homepage": "https://github.com/diegodlh/zotero-cita#readme",
-  "devDependencies": {
-    "@babel/cli": "^7.12.1",
-    "@babel/core": "^7.12.3",
-    "@babel/preset-env": "^7.12.1",
-    "@babel/preset-react": "^7.12.5",
-    "babel-eslint": "^10.1.0",
-    "babel-loader": "^8.2.2",
-    "copy-webpack-plugin": "^7.0.0",
-    "eslint": "^6.1.0",
-    "eslint-plugin-react": "^7.21.5",
-    "patch-package": "^6.2.2",
-    "webpack": "^5.9.0",
-    "webpack-cli": "^4.2.0"
-  },
-  "dependencies": {
-    "prop-types": "^15.7.2",
-    "querystring-es3": "^0.2.1",
-    "quickstatements-to-wikibase-edit": "^1.0.3",
-    "react": "^17.0.1",
-    "react-dom": "^17.0.1",
-    "wikibase-edit": "^4.16.1",
-    "wikibase-sdk": "^7.8.0"
-  },
-  "engines": {
-    "npm": ">=8.1"
-  }
+	"name": "zotero-cita",
+	"version": "1.0.0-beta.15",
+	"description": "Cita: a Wikidata addon for Zotero",
+	"config": {
+		"addonName": "Zotero Cita",
+		"addonID": "zotero-wikicite@wikidata.org",
+		"addonRef": "zotero-wikicite",
+		"addonInstance": "ZoteroCita",
+		"prefsPrefix": "extensions.cita",
+		"releasePage": "https://github.com/diegodlh/zotero-cita/releases",
+		"updateJSON": "https://github.com/diegodlh/zotero-cita/releases/latest/download/update.json"
+	},
+	"main": "src/index.ts",
+	"scripts": {
+		"start": "zotero-plugin serve",
+		"build": "tsc --noEmit && zotero-plugin build",
+		"lint": "prettier --write . && eslint . --fix",
+		"release": "release-it --only-version --preReleaseId=beta",
+		"postinstall": "patch-package",
+		"test": "echo \"Error: no test specified\" && exit 1",
+		"update-deps": "npm update --save",
+		"prepare": "husky"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/diegodlh/zotero-cita.git"
+	},
+	"author": "Diego de la Hera (https://diegodlh.conversodromo.com.ar/)",
+	"contributors": [
+		"Dominic Dall'Osto"
+	],
+	"license": "GPL-3.0-or-later",
+	"bugs": {
+		"url": "https://github.com/diegodlh/zotero-cita/issues"
+	},
+	"homepage": "https://github.com/diegodlh/zotero-cita",
+	"engines": {
+		"node": ">=22.8.0"
+	},
+	"dependencies": {
+		"@react-hook/resize-observer": "^2.0.2",
+		"bottleneck": "^2.19.5",
+		"core-js": "^3.47.0",
+		"openalex-sdk": "^1.1.6",
+		"prop-types": "^15.8.1",
+		"quickstatements-to-wikibase-edit": "^1.2.1",
+		"react": "^18.3.1",
+		"react-dom": "^18.3.1",
+		"react-error-boundary": "^4.1.1",
+		"react-intersection-observer": "^9.13.1",
+		"semver-parser": "^4.1.8",
+		"wikibase-edit": "^8.0.6",
+		"wikibase-sdk": "^11.1.2",
+		"zotero-plugin-toolkit": "^5.1.0-beta.13"
+	},
+	"devDependencies": {
+		"@types/core-js": "^2.5.8",
+		"@types/language-tags": "^1.0.4",
+		"@types/lodash": "^4.17.21",
+		"@types/node": "^22.8.0",
+		"@types/react-dom": "^18.3.0",
+		"eslint": "^9.39.2",
+		"husky": "^9.1.7",
+		"language-tags": "^1.0.9",
+		"lint-staged": "^16.2.7",
+		"patch-package": "^8.0.1",
+		"prettier": "^3.7.4",
+		"release-it": "^17.6.0",
+		"replace-in-file": "^8.4.0",
+		"typescript": "^5.9.3",
+		"typescript-eslint": "^8.50.1",
+		"zotero-plugin-scaffold": "^0.8.2",
+		"zotero-types": "^4.1.0-beta.4"
+	},
+	"prettier": {
+		"printWidth": 80,
+		"useTabs": true,
+		"tabWidth": 4,
+		"endOfLine": "lf",
+		"overrides": [
+			{
+				"files": [
+					"*.xhtml"
+				],
+				"options": {
+					"htmlWhitespaceSensitivity": "css"
+				}
+			}
+		]
+	},
+	"release-it": {
+		"git": {
+			"tagName": "v${version}"
+		},
+		"npm": {
+			"publish": false
+		},
+		"github": {
+			"release": false,
+			"assets": [
+				"build/*.xpi"
+			]
+		},
+		"hooks": {
+			"before:init": "npm run lint",
+			"after:bump": "npm run build"
+		}
+	},
+	"lint-staged": {
+		"*.{js,jsx,ts,tsx}": [
+			"prettier --write",
+			"eslint --fix"
+		],
+		"*": [
+			"prettier --ignore-unknown --write"
+		]
+	}
 }

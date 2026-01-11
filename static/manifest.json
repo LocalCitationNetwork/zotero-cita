@@ -1,0 +1,21 @@
+{
+	"manifest_version": 2,
+	"name": "__addonName__",
+	"version": "__buildVersion__",
+	"description": "__MSG_description__",
+	"homepage_url": "__homepage__",
+	"author": "__MSG_author__",
+	"icons": {
+		"48": "chrome/content/skin/default/cita.png",
+		"64": "chrome/content/skin/default/cita64.png"
+	},
+	"default_locale": "en",
+	"applications": {
+		"zotero": {
+			"id": "__addonID__",
+			"update_url": "__updateURL__",
+			"strict_min_version": "6.999",
+			"strict_max_version": "8.0.*"
+		}
+	}
+}

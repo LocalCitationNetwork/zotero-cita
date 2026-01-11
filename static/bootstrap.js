@@ -1,240 +1,79 @@
-"use strict";
+/**
+ * Most of this code is from Zotero team's official Make It Red example[1]
+ * or the Zotero 7 documentation[2].
+ * [1] https://github.com/zotero/make-it-red
+ * [2] https://www.zotero.org/support/dev/zotero_7_for_developers
+ */
 
-/* global Components, Services */
-/* global APP_SHUTDOWN */
-Components.utils.import("resource://gre/modules/Services.jsm");
+var chromeHandle;
 
-const PREF_BRANCH = 'extensions.cita.';
+function install(data, reason) {}
 
-const styleSheets = [
-  'chrome://cita/skin/overlay.css'
-];
+async function startup({ id, version, resourceURI, rootURI }, reason) {
+	await Zotero.initializationPromise;
 
-// eslint-disable-next-line no-unused-vars
-function install(data, reason) {
+	// String 'rootURI' introduced in Zotero 7
+	if (!rootURI) {
+		rootURI = resourceURI.spec;
+	}
 
+	var aomStartup = Components.classes[
+		"@mozilla.org/addons/addon-manager-startup;1"
+	].getService(Components.interfaces.amIAddonManagerStartup);
+	var manifestURI = Services.io.newURI(rootURI + "manifest.json");
+	chromeHandle = aomStartup.registerChrome(manifestURI, [
+		["content", "__addonRef__", rootURI + "chrome/content/"],
+	]);
+
+	/**
+	 * Global variables for plugin code.
+	 * The `_globalThis` is the global root variable of the plugin sandbox environment
+	 * and all child variables assigned to it is globally accessible.
+	 * See `src/index.ts` for details.
+	 */
+	const ctx = {
+		rootURI,
+	};
+	ctx._globalThis = ctx;
+
+	Services.scriptloader.loadSubScript(
+		// `${rootURI}/chrome/content/scripts/__addonRef__.js`,
+		`${rootURI}/chrome/content/scripts/index.js`,
+		ctx,
+	);
+	Zotero.__addonInstance__.hooks.onStartup();
 }
 
-// eslint-disable-next-line no-unused-vars
-function startup(data, reason) {
-  Wikicite.init();
+async function onMainWindowLoad({ window }, reason) {
+	Zotero.__addonInstance__?.hooks.onMainWindowLoad(window);
 }
 
-// eslint-disable-next-line no-unused-vars
-function shutdown(data, reason) {
-  if (reason == APP_SHUTDOWN) {
-    return;
-  }
-
-  const windows = Services.wm.getEnumerator('navigator:browser');
-  while (windows.hasMoreElements()) {
-    const tmpWin=windows.getNext();
-
-    tmpWin.WikiciteChrome.removeXUL();
-    if (typeof tmpWin.WikiciteChrome.zoteroOverlay != 'undefined') {
-      tmpWin.WikiciteChrome.zoteroOverlay.unload();
-    }
-    delete tmpWin.WikiciteChrome;
-    delete tmpWin.Wikicite;
-  }
-
-  Wikicite.cleanup();
-
-  Services.strings.flushBundles();
+async function onMainWindowUnload({ window }, reason) {
+	Zotero.__addonInstance__?.hooks.onMainWindowUnload(window);
 }
 
-// eslint-disable-next-line no-unused-vars
-function uninstall(data, reason) {
+function shutdown({ id, version, resourceURI, rootURI }, reason) {
+	if (reason === APP_SHUTDOWN) {
+		return;
+	}
 
+	if (typeof Zotero === "undefined") {
+		Zotero = Components.classes["@zotero.org/Zotero;1"].getService(
+			Components.interfaces.nsISupports,
+		).wrappedJSObject;
+	}
+	Zotero.__addonInstance__?.hooks.onShutdown();
+
+	Cc["@mozilla.org/intl/stringbundle;1"]
+		.getService(Components.interfaces.nsIStringBundleService)
+		.flushBundles();
+
+	Cu.unload(`${rootURI}/chrome/content/scripts/__addonRef__.js`);
+
+	if (chromeHandle) {
+		chromeHandle.destruct();
+		chromeHandle = null;
+	}
 }
 
-const Wikicite = {
-  /********************************************/
-  // Wikicite setup functions
-  /********************************************/
-  init: function() {
-    // Register observers that will respond to notifications triggered by preference changes
-    // this.observers.register()
-
-    // Set default preferences and watch changes
-    this.Prefs.init()
-
-    // Watch Zotero preferences
-    // Wikicite.ZoteroPrefs.init()
-
-    this.prepareWindows()
-
-    // Fixme: Not sure whether this belongs here or into loadWindowChrome
-    // https://developer.mozilla.org/en-US/docs/Archive/Add-ons/How_to_convert_an_overlay_extension_to_restartless
-    let styleSheetService= Components.classes["@mozilla.org/content/style-sheet-service;1"]
-      .getService(Components.interfaces.nsIStyleSheetService);
-    for (let i=0, len=styleSheets.length;i<len;i++) {
-      let styleSheetURI = Services.io.newURI(styleSheets[i], null, null);
-      styleSheetService.loadAndRegisterSheet(styleSheetURI, styleSheetService.AUTHOR_SHEET);
-    }
-  },
-
-  cleanup: function() {
-    // this.Prefs.unregister();
-    // this.observers.unregister();
-    Services.wm.removeListener(this.windowListener);
-
-    // Unload stylesheets
-    let styleSheetService = Components.classes["@mozilla.org/content/style-sheet-service;1"]
-      .getService(Components.interfaces.nsIStyleSheetService);
-    for (let i=0, len=styleSheets.length; i<len; i++) {
-      let styleSheetURI = Services.io.newURI(styleSheets[i], null, null);
-      if (styleSheetService.sheetRegistered(styleSheetURI, styleSheetService.AUTHOR_SHEET)) {
-        styleSheetService.unregisterSheet(styleSheetURI, styleSheetService.AUTHOR_SHEET);
-      }
-    }
-  },
-
-  prepareWindows: function() {
-    // Load scripts for previously opened windows
-    const windows = Services.wm.getEnumerator('navigator:browser');
-    while (windows.hasMoreElements()) {
-      this.loadWindowChrome(windows.getNext());
-    }
-
-    // Add listener to load scripts in windows opened in the future
-    Services.wm.addListener(this.windowListener);
-  },
-
-  // Why does wm.addListener's listener object's onOpenWindow method
-  // expect a xulWindow that I have to convert to a domWindow,
-  // whereas wm.getEnumerator returns domWindows (or at least windows
-  // I can provide directly to loadWindowChrome?
-  windowListener: {
-    onOpenWindow: function(xulWindow) {
-      // Wait for the window to finish loading
-      var domWindow = xulWindow
-        .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-        .getInterface(Components.interfaces.nsIDOMWindow)
-
-      domWindow.addEventListener('load', function listener() {
-        domWindow.removeEventListener('load', listener, false)
-        if (domWindow.document.documentElement.getAttribute('windowtype') == 'navigator:browser') {
-          Wikicite.loadWindowChrome(domWindow);
-        }
-      }, false)
-    },
-    onCloseWindow: function(_xulWindow) {},
-    onWindowTitleChange: function(_xulWindow, _newTitle) {}
-  },
-
-  loadWindowChrome: function(scope) {
-    scope.Wikicite = {};
-
-    // If needed, I may make the `window` property `Wikicite` point to some
-    // window-independent properties or methods defined here, such as Prefs.
-    // Prefs are initialized here, in bootstrap, so I need them defined here,
-    // but I may also need them in the window (and I can't import them there).
-    scope.Wikicite.Prefs = this.Prefs;
-
-    // Define WikiciteChrome as window property so it can be deleted on
-    // shutdown
-    scope.WikiciteChrome = {};
-    Services.scriptloader.loadSubScript(
-      'chrome://cita/content/main.js', scope);
-    scope.WikiciteChrome.zoteroOverlay.init();
-  }
-}
-
-Wikicite.Prefs = {
-  init: function() {
-    this.prefBranch = Services.prefs.getBranch(PREF_BRANCH);
-    this.setDefaults()
-
-    // Register observer to handle pref changes
-    this.register()
-  },
-
-  setDefaults: function() {
-    const defaults = Services.prefs.getDefaultBranch(PREF_BRANCH);
-    // defaults.setIntPref(prefName, prefValue);
-    defaults.setCharPref('sortBy', 'ordinal');  // 'ordinal', 'authors', 'title', 'date'
-    defaults.setCharPref('storage', 'note');  // 'extra' || 'note'
-    // defaults.setBoolPref();
-  },
-
-  get: function(pref, global) {
-    let prefVal;
-    try {
-      let branch;
-      if (global) {
-        branch = Services.prefs.getBranch('');
-      } else {
-        branch = this.prefBranch;
-      }
-
-      switch (branch.getPrefType(pref)){
-        case branch.PREF_BOOL:
-          prefVal = branch.getBoolPref(pref);
-          break;
-        case branch.PREF_STRING:
-          prefVal = branch.getCharPref(pref);
-          break;
-        case branch.PREF_INT:
-          prefVal = branch.getIntPref(pref);
-          break;
-      }
-    }
-    catch (e) {
-      throw new Error('Invalid Cita pref call for ' + pref);
-    }
-
-    return prefVal;
-  },
-
-  set: function(pref, value) {
-    switch (this.prefBranch.getPrefType(pref)){
-      case this.prefBranch.PREF_BOOL:
-        return this.prefBranch.setBoolPref(pref, value);
-      case this.prefBranch.PREF_STRING:
-        return this.prefBranch.setCharPref(pref, value);
-      case this.prefBranch.PREF_INT:
-        return this.prefBranch.setIntPref(pref, value);
-    }
-
-    return false;
-  },
-
-  clear: function(pref) {
-    try {
-      this.prefBranch.clearUserPref(pref);
-    }
-    catch (e) {
-      throw new Error('Invalid preference "' + pref + '"');
-    }
-  },
-
-  //
-  // Methods to register a preferences observer
-  //
-  register: function() {
-    this.prefBranch.addObserver('', this, false);
-  },
-
-  unregister: function() {
-    if (!this.prefBranch) {
-      return;
-    }
-    this.prefBranch.removeObserver('', this);
-  },
-
-  //
-  // The observe function that will be called
-  // when a preference changes
-  //
-  observe: function(subject, topic, data) {
-    if (topic != 'nsPref:changed') {
-      return;
-    }
-    if (data === 'sortBy') {
-      // if the sortBy preference changes, notify observers of the
-      // 'wikicite-sortby-update' topic
-      Services.obs.notifyObservers(null, 'wikicite-sortby-update', null);
-    }
-  }
-}
+function uninstall(data, reason) {}

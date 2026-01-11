@@ -1,0 +1,24 @@
+diff --git a/node_modules/react-dom/cjs/react-dom.development.js b/node_modules/react-dom/cjs/react-dom.development.js
+index a11d72f..c7d28e1 100644
+--- a/node_modules/react-dom/cjs/react-dom.development.js
++++ b/node_modules/react-dom/cjs/react-dom.development.js
+@@ -7843,7 +7843,8 @@ if (canUseDOM) {
+ function startWatchingForValueChange(target, targetInst) {
+   activeElement = target;
+   activeElementInst = targetInst;
+-  activeElement.attachEvent('onpropertychange', handlePropertyChange);
++  // activeElement.attachEvent('onpropertychange', handlePropertyChange);
++  activeElement.addEventListener('propertychange', handlePropertyChange);
+ }
+ /**
+  * (For IE <=9) Removes the event listeners from the currently-tracked element,
+@@ -7856,7 +7857,8 @@ function stopWatchingForValueChange() {
+     return;
+   }
+ 
+-  activeElement.detachEvent('onpropertychange', handlePropertyChange);
++  // activeElement.detachEvent('onpropertychange', handlePropertyChange);
++  activeElement.removeEventListener('propertychange', handlePropertyChange);
+   activeElement = null;
+   activeElementInst = null;
+ }

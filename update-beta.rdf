@@ -1,33 +1,28 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-        xmlns:em="http://www.mozilla.org/2004/em-rdf#">
-    <rdf:Description rdf:about="urn:mozilla:extension:zotero-wikicite@wikidata.org">
-        <em:updates>
-            <rdf:Seq>
-                <rdf:li>
-                    <rdf:Description>
-                        <em:version>0.5.5</em:version>
-                        <em:targetApplication>
-                            <rdf:Description>
-                                <em:id>zotero@chnm.gmu.edu</em:id>
-                                <em:minVersion>3.0b1</em:minVersion>
-                                <em:maxVersion>*</em:maxVersion>
-                                <em:updateLink>https://github.com/diegodlh/zotero-cita/releases/download/v0.5.5/zotero-cita-v0.5.5.xpi</em:updateLink>
-                            </rdf:Description>
-                        </em:targetApplication> 
-
-                        <em:targetApplication>
-                            <rdf:Description>
-                                <em:id>juris-m@juris-m.github.io</em:id>
-                                <em:minVersion>4.0</em:minVersion>
-                                <em:maxVersion>*</em:maxVersion>
-                                <em:updateLink>https://github.com/diegodlh/zotero-cita/releases/download/v0.5.5/zotero-cita-v0.5.5.xpi</em:updateLink>
-                            </rdf:Description>
-                        </em:targetApplication>
-
-                    </rdf:Description>
-                </rdf:li>
-            </rdf:Seq>
-        </em:updates>
-    </rdf:Description>
-</rdf:RDF>
+{
+	"addons": {
+		"zotero-wikicite@wikidata.org": {
+			"updates": [
+				{
+					"version": "0.5.5",
+					"update_link": "https://github.com/diegodlh/zotero-cita/releases/download/v0.5.5/zotero-cita-v0.5.5.xpi",
+					"applications": {
+						"gecko": {
+							"strict_min_version": "60.9",
+							"strict_max_version": "60.9"
+						}
+					}
+				},
+				{
+					"version": "1.0.0",
+					"update_link": "https://github.com/diegodlh/zotero-cita/releases/download/v1.0.0/zotero-cita.xpi",
+					"applications": {
+						"zotero": {
+							"strict_min_version": "6.999",
+							"strict_max_version": "7.0.*"
+						}
+					}
+				}
+			]
+		}
+	}
+}

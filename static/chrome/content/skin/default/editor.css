@@ -1,0 +1,52 @@
+window#citation-editor {
+	height: 100%;
+	width: 100%;
+	padding: 1em;
+	/* These values must be set before the item box is rendered */
+	/* taken from _editableText.scss */
+	--editable-text-padding-inline: 4px;
+	--editable-text-padding-block: 4px;
+	--editable-text-tight-padding-inline: 4px;
+	--editable-text-tight-padding-block: 2px;
+	--zotero-font-size: 1rem;
+}
+
+#citation-editor h4 {
+	margin-block-start: 0.75em;
+	margin-block-end: auto;
+}
+
+#pid-header {
+	display: flex;
+	justify-content: space-between;
+}
+
+div#citation-editor-container {
+	display: grid;
+	height: 100%;
+}
+/* get the item box to contract into a scrollbar if the window is too small */
+div#citation-editor-item-box-container {
+	overflow-y: auto;
+	overflow-x: clip;
+}
+/* keep the PID rows anchored to the bottom of the window */
+div#citation-editor-footer {
+	align-self: end;
+	width: 100%;
+}
+
+div#citation-editor-buttons {
+	margin-top: 10px;
+	text-align: right;
+}
+
+div#citation-editor-buttons > button {
+	margin-left: 5px;
+	margin-right: 5px;
+}
+
+#root {
+	flex-grow: 1;
+	display: flex;
+}

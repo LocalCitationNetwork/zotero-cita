@@ -1,0 +1,216 @@
+import Wikidata from "./wikidata";
+
+import { getString as _getString } from "../utils/locale";
+
+import { version as citaVersion } from "../../package.json";
+
+/**
+ * Wikicite namespace.
+ */
+export default {
+	// /********************************************/
+	// // Basic information
+	// /********************************************/
+	id: "zotero-wikicite@wikidata.org",
+	version: citaVersion,
+	// zoteroID: 'zotero@chnm.gmu.edu',
+	// zoteroTabURL: 'chrome://zotero/content/tab.xul',
+
+	cleanPID: function (type: PIDType, value: string) {
+		switch (type) {
+			case "DOI":
+				return Zotero.Utilities.cleanDOI(value);
+			case "ISBN":
+				return Zotero.Utilities.cleanISBN(value);
+			case "QID":
+				return Wikidata.cleanQID(value);
+			case "OMID":
+				return Wikidata.cleanOMID(value);
+			case "arXiv":
+				return Wikidata.cleanArXiv(value);
+			case "OpenAlex":
+				return Wikidata.cleanOpenAlex(value);
+			default:
+				return value;
+		}
+	},
+
+	getUserAgent: function () {
+		return `Cita/v${this.version || "?"} (https://github.com/diegodlh/zotero-cita)`;
+	},
+
+	/********************************************/
+	// General use utility functions
+	/********************************************/
+
+	/**
+	 * Return values for extra field fields.
+	 * @param {Zotero.Item} item - A Zotero item.
+	 * @param {string} fieldName - The extra field field name desired.
+	 * @returns {extra} extra - Extra field after desired extra field fields have been extracted.
+	 * @returns {values} values - Array of values for the desired extra field field.
+	 */
+	getExtraField: function (item: any, fieldName: string) {
+		const pattern = new RegExp(`^${fieldName}:(.+)$`, "i");
+		const extra = item.getField("extra") as string;
+		const lines = extra.split(/\n/g);
+		const values: string[] = [];
+		const newExtra = lines
+			.filter((line) => {
+				const match = line.match(pattern);
+				if (!match) {
+					return true;
+				}
+				const [, value] = match;
+				values.push(value.trim());
+				return false;
+			})
+			.join("\n");
+		return {
+			newExtra,
+			values,
+		};
+	},
+
+	/**
+	 * Set field value in extra field item.
+	 * It sets: therefore, if already exists, replaces
+	 * @param {Zotero.Item} item - A Zotero item.
+	 * @param {string} fieldName - The name of the extra field that wants to be set.
+	 * @param {String[]} values - An array of values for the field that wants to be set.
+	 */
+	setExtraField: function (
+		item: Zotero.Item,
+		fieldName: string,
+		values: string[],
+	) {
+		let { newExtra } = this.getExtraField(item, fieldName);
+		for (const value of values) {
+			if (value) {
+				// I have to be very careful that there are no new lines in what I'm saving
+				newExtra += `\n${fieldName}: ${value.trim()}`;
+			}
+		}
+		item.setField("extra", newExtra);
+	},
+
+	/**
+	 * Get a citations note for an item
+	 * @param item the Zotero item to get the note for
+	 * @param index (optional) if provided, get the citations note with that number (called "Citations{index:03d}"). Otherwise get the only citations (called "Citations")
+	 * @returns the desired citation note for the item
+	 */
+	getCitationsNote: function (item: Zotero.Item, index?: number) {
+		const noteTitle =
+			index !== undefined
+				? `Citations${index.toString().padStart(3, "0")}`
+				: "Citations";
+		// Fixme: consider moving to SourceItemWrapper
+		const notes = Zotero.Items.get(item.getNotes()).filter(
+			(note) => note.getNoteTitle() === noteTitle,
+		);
+		if (notes.length > 1) {
+			Zotero.logError(
+				new Error(
+					`Multiple citations notes found for item ${item.key}`,
+				),
+			);
+			Services.prompt.alert(
+				window as mozIDOMWindowProxy,
+				this.getString("wikicite.global.name"),
+				this.getString(
+					"wikicite.source-item.get-citations-note.error.multiple",
+				),
+			);
+		}
+		return notes[0];
+	},
+
+	/**
+	 * Get all citations notes for an item, sorted
+	 * @param item the Zotero item to get all the notes for
+	 * @returns list of citation notes, sorted by their title
+	 */
+	getCitationsNotes: function (item: Zotero.Item) {
+		// Fixme: consider moving to SourceItemWrapper
+		const notes = Zotero.Items.get(item.getNotes())
+			.filter((note) => note.getNoteTitle().startsWith("Citations"))
+			.sort((note1, note2) =>
+				note1.getNoteTitle() < note2.getNoteTitle() ? -1 : 1,
+			);
+		return notes;
+	},
+
+	/**
+	 * Get localised string from a translation identifier.
+	 * Note: this method performs normalisation (camel case to hyphen separated, dot to underscore)
+	 * to match the expected formatting in the translation files.
+	 * @param name translation identifier string (eg. `wikicite.source-item.import.progress.done` or `source-item.import.progress.error`)
+	 * @returns localised string
+	 */
+	getString: function (name: string) {
+		// convert camelCase to hyphen-divided for translatewiki.net
+		name = name.replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase();
+		name = name.replace(/\./g, "_"); // convert . to - for fluent
+		const nameParts = name.split("_");
+		// if leading part of the name is not 'wikicite', add it
+		if (nameParts[0] !== "wikicite") nameParts.unshift("wikicite");
+		name = nameParts.join("_");
+		return _getString(name);
+	},
+
+	/**
+	 * Get localised string from a translation identifier while inserting values into it.
+	 * Note: this method performs normalisation (camel case to hyphen separated, dot to underscore)
+	 * to match the expected formatting in the translation files.
+	 * @param name translation identifier string (eg. `wikicite.wikidata.orphaned.message` or `wikidata.ignored.message`)
+	 * @param params single value or list of values to insert in the localised string
+	 * @returns localised string
+	 */
+	formatString: function (name: string, params: unknown | unknown[]) {
+		// convert camelCase to hyphen-divided for translatewiki.net
+		name = name.replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase();
+		name = name.replace(/\./g, "_"); // convert . to - for fluent
+		const nameParts = name.split("_");
+		// if leading part of the name is not 'wikicite', add it
+		if (nameParts[0] !== "wikicite") nameParts.unshift("wikicite");
+		name = nameParts.join("_");
+		if (!Array.isArray(params)) params = [params];
+		// pass ordered parameters as "s1", "s2", ..., "sn"
+		const args = Object.fromEntries(
+			(params as unknown[]).map((param, index) => [
+				`s${index + 1}`,
+				param,
+			]),
+		);
+		return _getString(name, { args });
+	},
+
+	selectItem: function () {
+		// Adapted from Zotero's bindings/relatedbox.xml
+		const io = { singleSelection: true, dataOut: [] };
+		window.openDialog(
+			"chrome://zotero/content/selectItemsDialog.xul",
+			"",
+			"chrome,dialog=no,modal,centerscreen,resizable=yes",
+			io,
+		);
+		if (!io.dataOut || !io.dataOut.length) {
+			return;
+		}
+		const id = io.dataOut[0];
+		const item = Zotero.Items.get(id);
+
+		return item;
+	},
+};
+
+export function debug(msg: string, err?: Error) {
+	if (err) {
+		Zotero.debug(
+			`{Cita} ${new Date()} error: ${msg} (${err} ${err.stack})`,
+		);
+	} else {
+		Zotero.debug(`{Cita} ${new Date()}: ${msg}`);
+	}
+}
