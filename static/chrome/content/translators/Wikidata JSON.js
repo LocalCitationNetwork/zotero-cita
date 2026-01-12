@@ -40,7 +40,7 @@ const LOCALE = 'en';
 const INSTANCE_OF = 'P31';
 const TITLE = 'P1476';
 const SERIES_ORDINAL = 'P1545';
-const HTTP_USER_AGENT = 'Cita/v? (https://github.com/diegodlh/zotero-cita)';
+const HTTP_USER_AGENT = 'Cita/v? (https://github.com/zotero-cita/zotero-cita)';
 
 //see also https://github.com/UB-Mannheim/zotkat/blob/master/Wikidata%20QuickStatements.js
 var typeMapping = {

@@ -8,8 +8,8 @@
 		"addonRef": "zotero-wikicite",
 		"addonInstance": "ZoteroCita",
 		"prefsPrefix": "extensions.cita",
-		"releasePage": "https://github.com/diegodlh/zotero-cita/releases",
-		"updateJSON": "https://github.com/diegodlh/zotero-cita/releases/latest/download/update.json"
+		"releasePage": "https://github.com/zotero-cita/zotero-cita/releases",
+		"updateJSON": "https://github.com/zotero-cita/zotero-cita/releases/latest/download/update.json"
 	},
 	"main": "src/index.ts",
 	"scripts": {
@@ -24,7 +24,7 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/diegodlh/zotero-cita.git"
+		"url": "git+https://github.com/zotero-cita/zotero-cita.git"
 	},
 	"author": "Diego de la Hera (https://diegodlh.conversodromo.com.ar/)",
 	"contributors": [
@@ -32,9 +32,9 @@
 	],
 	"license": "GPL-3.0-or-later",
 	"bugs": {
-		"url": "https://github.com/diegodlh/zotero-cita/issues"
+		"url": "https://github.com/zotero-cita/zotero-cita/issues"
 	},
-	"homepage": "https://github.com/diegodlh/zotero-cita",
+	"homepage": "https://github.com/zotero-cita/zotero-cita",
 	"engines": {
 		"node": ">=22.8.0"
 	},

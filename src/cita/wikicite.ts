@@ -36,7 +36,7 @@ export default {
 	},
 
 	getUserAgent: function () {
-		return `Cita/v${this.version || "?"} (https://github.com/diegodlh/zotero-cita)`;
+		return `Cita/v${this.version || "?"} (https://github.com/zotero-cita/zotero-cita)`;
 	},
 
 	/********************************************/

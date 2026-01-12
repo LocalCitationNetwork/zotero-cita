@@ -40,9 +40,9 @@ using Tim Wölfle's [Local Citation Network](https://timwoelfle.github.io/Local-
 
 ## Installation
 
-Download the [latest XPI](https://github.com/diegodlh/zotero-cita/releases/latest) and [install](https://www.zotero.org/support/plugins) it in Zotero.
+Download the [latest XPI](https://github.com/zotero-cita/zotero-cita/releases/latest) and [install](https://www.zotero.org/support/plugins) it in Zotero.
 
-> **Note:** Cita v1.0.0 and later versions require Zotero 7 or later. The last version supporting Zotero 6 was [v0.5.5](https://github.com/diegodlh/zotero-cita/releases/tag/v0.5.5)
+> **Note:** Cita v1.0.0 and later versions require Zotero 7 or later. The last version supporting Zotero 6 was [v0.5.5](https://github.com/zotero-cita/zotero-cita/releases/tag/v0.5.5)
 
 ## Quickstart guide
 
@@ -56,7 +56,7 @@ Cita is collaboratively translated at translatewiki.net. Would you like to help 
 
 1. Download a beta version of Zotero from [here](https://www.zotero.org/support/beta_builds) - these come with the debug tools already enabled so you don't need to build it from source.
 2. Install nodejs and npm if you don't already have them (Currently Node v22 and npm v10 are the minimum required versions)
-3. Clone the source code `git clone https://github.com/diegodlh/zotero-cita`, and run `git submodule update --init --recursive` to fetch the nested submodules.
+3. Clone the source code `git clone https://github.com/zotero-cita/zotero-cita`, and run `git submodule update --init --recursive` to fetch the nested submodules.
 4. Setup the plugin to run with the debug version of Zotero
     1. Make a new file in the repo root called `.env` (you can also copy an example `.env` file from [here](https://github.com/northword/zotero-plugin-scaffold?tab=readme-ov-file#03-create-a-env-file))
     2. Add a line in `.env` like `ZOTERO_PLUGIN_ZOTERO_BIN_PATH = <path-to-your-zotero-binary>` to point to the executable of the Zotero debug build you downloaded in step 1.

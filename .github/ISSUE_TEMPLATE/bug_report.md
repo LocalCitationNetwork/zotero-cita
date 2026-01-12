@@ -11,7 +11,7 @@ assignees: ''
 You can follow this template to report a bug. Try and provide as much information as possible.
 Please use the search to make sure it hasn't been reported before.
 The preferred language is English. You can use [DeepL](https://www.deepl.com/translator) or [Google Translate](https://translate.google.com/) if you need to.
-If you are not sure whether to post an issue, you can open a [discussion](https://github.com/diegodlh/zotero-cita/discussions) instead.
+If you are not sure whether to post an issue, you can open a [discussion](https://github.com/zotero-cita/zotero-cita/discussions) instead.
 -->
 
 **Describe the bug**
